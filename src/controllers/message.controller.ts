@@ -1,5 +1,6 @@
 import { Bot, Context } from "grammy";
 import { STATE } from "../constants/state-types";
+import { getLocale, t } from "../i18n/messages";
 import type { MediaType, StatePayload } from "../shared/types";
 import { getUserId } from "./context-helpers";
 import type { ControllerDeps } from "./controller.types";
@@ -69,26 +70,27 @@ export class MessageController {
     text: string,
     payload: StatePayload
   ): Promise<void> {
+    const locale = getLocale(ctx);
     if (!hasText(ctx)) {
-      await ctx.reply("Введите пароль текстом.");
+      await ctx.reply(t(locale, "enterPasswordAsText"));
       return;
     }
 
     const categoryId = parseCategoryId(payload);
     if (categoryId === null) {
       this.deps.userStateService.clear(userId);
-      await ctx.reply("Состояние сброшено. Нажмите /start и попробуйте снова.");
+      await ctx.reply(t(locale, "stateResetStartAgain"));
       return;
     }
 
     const access = this.deps.categoryService.verifyCategoryAccess(categoryId, text);
     if (access.status === "not_found") {
       this.deps.userStateService.clear(userId);
-      await ctx.reply("Категория не найдена. Нажмите /start.");
+      await ctx.reply(t(locale, "categoryNotFoundStart"));
       return;
     }
     if (access.status === "invalid_password") {
-      await ctx.reply("Неверный пароль. Попробуйте снова.");
+      await ctx.reply(t(locale, "wrongPasswordTryAgain"));
       return;
     }
 
@@ -96,25 +98,25 @@ export class MessageController {
     const videos = this.deps.videoService.listByCategory(access.category.id);
 
     if (videos.length === 0) {
-      await ctx.reply("В этом разделе пока нет видео.", {
-        reply_markup: this.deps.navigationService.buildBackToSectionsKeyboard()
+      await ctx.reply(t(locale, "noVideosInSection"), {
+        reply_markup: this.deps.navigationService.buildBackToSectionsKeyboard(locale)
       });
       return;
     }
 
-    await ctx.reply(`Раздел "${access.category.name}" открыт. Отправляю список превью:`);
+    await ctx.reply(t(locale, "sectionOpenedSendingPreviews", { sectionName: access.category.name }));
     for (const video of videos) {
       if (video.mediaType === "video_note") {
         await ctx.replyWithVideoNote(video.fileId);
-        await ctx.reply(this.deps.navigationService.formatVideoCaption(video));
+        await ctx.reply(this.deps.navigationService.formatVideoCaption(video, locale));
       } else {
         await ctx.replyWithVideo(video.fileId, {
-          caption: this.deps.navigationService.formatVideoCaption(video)
+          caption: this.deps.navigationService.formatVideoCaption(video, locale)
         });
       }
     }
-    await ctx.reply("Конец списка.", {
-      reply_markup: this.deps.navigationService.buildBackToSectionsKeyboard()
+    await ctx.reply(t(locale, "endOfList"), {
+      reply_markup: this.deps.navigationService.buildBackToSectionsKeyboard(locale)
     });
   }
 
@@ -123,18 +125,19 @@ export class MessageController {
     userId: number,
     text: string
   ): Promise<void> {
+    const locale = getLocale(ctx);
     if (!hasText(ctx)) {
-      await ctx.reply("Введите название категории текстом.");
+      await ctx.reply(t(locale, "enterCategoryNameAsText"));
       return;
     }
     if (!this.isAdmin(userId)) {
       this.deps.userStateService.clear(userId);
-      await ctx.reply("Недостаточно прав.");
+      await ctx.reply(t(locale, "insufficientRights"));
       return;
     }
 
     this.deps.userStateService.set(userId, STATE.AdminAddCategoryPassword, { name: text });
-    await ctx.reply("Введите пароль для этой категории:");
+    await ctx.reply(t(locale, "enterPasswordForCategory"));
   }
 
   private async handleAdminAddCategoryPassword(
@@ -143,29 +146,30 @@ export class MessageController {
     text: string,
     payload: StatePayload
   ): Promise<void> {
+    const locale = getLocale(ctx);
     if (!hasText(ctx)) {
-      await ctx.reply("Введите пароль текстом.");
+      await ctx.reply(t(locale, "enterPasswordAsText"));
       return;
     }
     if (!this.isAdmin(userId)) {
       this.deps.userStateService.clear(userId);
-      await ctx.reply("Недостаточно прав.");
+      await ctx.reply(t(locale, "insufficientRights"));
       return;
     }
 
     const name = typeof payload?.name === "string" ? payload.name.trim() : "";
     if (!name) {
       this.deps.userStateService.clear(userId);
-      await ctx.reply("Ошибка состояния. Запустите /add_category заново.");
+      await ctx.reply(t(locale, "stateErrorRestartAddCategory"));
       return;
     }
 
     try {
       this.deps.categoryService.createCategory(name, text);
       this.deps.userStateService.clear(userId);
-      await ctx.reply(`Категория "${name}" успешно создана.`);
+      await ctx.reply(t(locale, "categoryCreated", { categoryName: name }));
     } catch (error) {
-      await ctx.reply("Не удалось создать категорию. Возможно, такое название уже существует.");
+      await ctx.reply(t(locale, "createCategoryFailedMaybeExists"));
       if (process.env.NODE_ENV !== "production") {
         console.error(error);
       }
@@ -177,22 +181,23 @@ export class MessageController {
     userId: number,
     payload: StatePayload
   ): Promise<void> {
+    const locale = getLocale(ctx);
     if (!this.isAdmin(userId)) {
       this.deps.userStateService.clear(userId);
-      await ctx.reply("Недостаточно прав.");
+      await ctx.reply(t(locale, "insufficientRights"));
       return;
     }
 
     const categoryId = parseCategoryId(payload);
     if (categoryId === null) {
       this.deps.userStateService.clear(userId);
-      await ctx.reply("Ошибка состояния. Запустите /add_video заново.");
+      await ctx.reply(t(locale, "stateErrorRestartAddVideo"));
       return;
     }
 
     const media = parseIncomingMedia(ctx);
     if (!media) {
-      await ctx.reply("Ожидаю видео или video_note.");
+      await ctx.reply(t(locale, "expectVideoOrVideoNote"));
       return;
     }
 
@@ -201,7 +206,7 @@ export class MessageController {
       fileId: media.fileId,
       mediaType: media.mediaType
     });
-    await ctx.reply("Введите название видео:");
+    await ctx.reply(t(locale, "enterVideoTitle"));
   }
 
   private async handleAdminAddVideoTitle(
@@ -210,13 +215,14 @@ export class MessageController {
     text: string,
     payload: StatePayload
   ): Promise<void> {
+    const locale = getLocale(ctx);
     if (!hasText(ctx)) {
-      await ctx.reply("Введите название текстом.");
+      await ctx.reply(t(locale, "enterTitleAsText"));
       return;
     }
     if (!this.isAdmin(userId)) {
       this.deps.userStateService.clear(userId);
-      await ctx.reply("Недостаточно прав.");
+      await ctx.reply(t(locale, "insufficientRights"));
       return;
     }
 
@@ -230,7 +236,7 @@ export class MessageController {
       (mediaType !== "video" && mediaType !== "video_note")
     ) {
       this.deps.userStateService.clear(userId);
-      await ctx.reply("Ошибка состояния. Запустите /add_video заново.");
+      await ctx.reply(t(locale, "stateErrorRestartAddVideo"));
       return;
     }
 
@@ -240,7 +246,7 @@ export class MessageController {
       mediaType,
       title: text
     });
-    await ctx.reply("Введите краткое описание:");
+    await ctx.reply(t(locale, "enterShortDescription"));
   }
 
   private async handleAdminAddVideoDescription(
@@ -249,13 +255,14 @@ export class MessageController {
     text: string,
     payload: StatePayload
   ): Promise<void> {
+    const locale = getLocale(ctx);
     if (!hasText(ctx)) {
-      await ctx.reply("Введите описание текстом.");
+      await ctx.reply(t(locale, "enterDescriptionAsText"));
       return;
     }
     if (!this.isAdmin(userId)) {
       this.deps.userStateService.clear(userId);
-      await ctx.reply("Недостаточно прав.");
+      await ctx.reply(t(locale, "insufficientRights"));
       return;
     }
 
@@ -271,7 +278,7 @@ export class MessageController {
       (mediaType !== "video" && mediaType !== "video_note")
     ) {
       this.deps.userStateService.clear(userId);
-      await ctx.reply("Ошибка состояния. Запустите /add_video заново.");
+      await ctx.reply(t(locale, "stateErrorRestartAddVideo"));
       return;
     }
 
@@ -284,9 +291,9 @@ export class MessageController {
         description: text
       });
       this.deps.userStateService.clear(userId);
-      await ctx.reply("Видео успешно добавлено.");
+      await ctx.reply(t(locale, "videoAdded"));
     } catch (error) {
-      await ctx.reply("Не удалось сохранить видео.");
+      await ctx.reply(t(locale, "videoSaveFailed"));
       if (process.env.NODE_ENV !== "production") {
         console.error(error);
       }
@@ -299,30 +306,31 @@ export class MessageController {
     text: string,
     payload: StatePayload
   ): Promise<void> {
+    const locale = getLocale(ctx);
     if (!hasText(ctx)) {
-      await ctx.reply("Введите пароль текстом.");
+      await ctx.reply(t(locale, "enterPasswordAsText"));
       return;
     }
     if (!this.isAdmin(userId)) {
       this.deps.userStateService.clear(userId);
-      await ctx.reply("Недостаточно прав.");
+      await ctx.reply(t(locale, "insufficientRights"));
       return;
     }
 
     const categoryId = parseCategoryId(payload);
     if (categoryId === null) {
       this.deps.userStateService.clear(userId);
-      await ctx.reply("Ошибка состояния. Запустите /change_password заново.");
+      await ctx.reply(t(locale, "stateErrorRestartChangePassword"));
       return;
     }
 
     const changed = this.deps.categoryService.changeCategoryPassword(categoryId, text);
     this.deps.userStateService.clear(userId);
     if (!changed) {
-      await ctx.reply("Категория не найдена.");
+      await ctx.reply(t(locale, "categoryNotFound"));
       return;
     }
-    await ctx.reply("Пароль категории обновлен.");
+    await ctx.reply(t(locale, "categoryPasswordUpdated"));
   }
 
   private isAdmin(userId: number): boolean {
@@ -353,4 +361,3 @@ function parseIncomingMedia(ctx: Context): { mediaType: MediaType; fileId: strin
   }
   return null;
 }
-

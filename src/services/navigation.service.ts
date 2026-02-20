@@ -1,4 +1,5 @@
 import { Context, InlineKeyboard } from "grammy";
+import { getLocale, t, type BotLocale } from "../i18n/messages";
 import type { Category, Video } from "../shared/types";
 import { CategoryService } from "./category.service";
 
@@ -16,26 +17,26 @@ export class NavigationService {
     return keyboard;
   }
 
-  buildBackToSectionsKeyboard(): InlineKeyboard {
-    return new InlineKeyboard().text("⬅ Назад к разделам", "back_to_sections");
+  buildBackToSectionsKeyboard(locale: BotLocale): InlineKeyboard {
+    return new InlineKeyboard().text(t(locale, "backToSectionsButton"), "back_to_sections");
   }
 
-  formatVideoCaption(video: Video): string {
-    const safeTitle = video.title.trim() || "Без названия";
-    const safeDescription = video.description.trim() || "Без описания";
+  formatVideoCaption(video: Video, locale: BotLocale): string {
+    const safeTitle = video.title.trim() || t(locale, "untitled");
+    const safeDescription = video.description.trim() || t(locale, "noDescription");
     return `${safeTitle}\n${safeDescription}`;
   }
 
   async showSections(ctx: Context): Promise<void> {
+    const locale = getLocale(ctx);
     const categories = this.categoryService.listCategories();
     if (categories.length === 0) {
-      await ctx.reply("Пока нет доступных разделов.");
+      await ctx.reply(t(locale, "noSectionsYet"));
       return;
     }
 
-    await ctx.reply("Добро пожаловать.\nВыберите раздел:", {
+    await ctx.reply(t(locale, "welcomeSelectSection"), {
       reply_markup: this.buildCategoriesKeyboard("select_category", categories)
     });
   }
 }
-

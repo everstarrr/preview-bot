@@ -1,5 +1,6 @@
 import { Bot, Context, InlineKeyboard } from "grammy";
 import { STATE } from "../constants/state-types";
+import { getLocale, t } from "../i18n/messages";
 import { getUserId } from "./context-helpers";
 import type { ControllerDeps } from "./controller.types";
 import { parseCategoryId } from "./payload-helpers";
@@ -38,6 +39,7 @@ export class CallbackController {
   }
 
   private async onSelectCategory(ctx: Context): Promise<void> {
+    const locale = getLocale(ctx);
     const userId = getUserId(ctx);
     if (userId === null) {
       return;
@@ -45,22 +47,23 @@ export class CallbackController {
 
     const categoryId = getMatchGroupAsNumber(ctx, 1);
     if (categoryId === null) {
-      await ctx.answerCallbackQuery({ text: "Некорректный запрос", show_alert: true });
+      await ctx.answerCallbackQuery({ text: t(locale, "invalidRequest"), show_alert: true });
       return;
     }
     const category = this.deps.categoryService.getCategoryById(categoryId);
     await ctx.answerCallbackQuery();
 
     if (!category) {
-      await ctx.reply("Категория не найдена.");
+      await ctx.reply(t(locale, "categoryNotFound"));
       return;
     }
 
     this.deps.userStateService.set(userId, STATE.WaitCategoryPassword, { categoryId });
-    await ctx.reply("Введите пароль для доступа к разделу:");
+    await ctx.reply(t(locale, "enterSectionPassword"));
   }
 
   private async onAdminAddVideoCategory(ctx: Context): Promise<void> {
+    const locale = getLocale(ctx);
     const userId = await this.getAdminUserIdFromCallback(ctx);
     if (userId === null) {
       return;
@@ -68,28 +71,29 @@ export class CallbackController {
 
     const state = this.deps.userStateService.get(userId);
     if (state?.stateType !== STATE.AdminAddVideoCategory) {
-      await ctx.answerCallbackQuery({ text: "Действие неактуально", show_alert: true });
+      await ctx.answerCallbackQuery({ text: t(locale, "actionOutdated"), show_alert: true });
       return;
     }
 
     const categoryId = getMatchGroupAsNumber(ctx, 1);
     if (categoryId === null) {
-      await ctx.answerCallbackQuery({ text: "Некорректный запрос", show_alert: true });
+      await ctx.answerCallbackQuery({ text: t(locale, "invalidRequest"), show_alert: true });
       return;
     }
     const category = this.deps.categoryService.getCategoryById(categoryId);
     await ctx.answerCallbackQuery();
 
     if (!category) {
-      await ctx.reply("Категория не найдена.");
+      await ctx.reply(t(locale, "categoryNotFound"));
       return;
     }
 
     this.deps.userStateService.set(userId, STATE.AdminAddVideoFile, { categoryId });
-    await ctx.reply(`Отправьте видео или video_note для категории "${category.name}":`);
+    await ctx.reply(t(locale, "sendVideoForCategory", { categoryName: category.name }));
   }
 
   private async onAdminChangePasswordCategory(ctx: Context): Promise<void> {
+    const locale = getLocale(ctx);
     const userId = await this.getAdminUserIdFromCallback(ctx);
     if (userId === null) {
       return;
@@ -97,28 +101,29 @@ export class CallbackController {
 
     const state = this.deps.userStateService.get(userId);
     if (state?.stateType !== STATE.AdminChangePasswordCategory) {
-      await ctx.answerCallbackQuery({ text: "Действие неактуально", show_alert: true });
+      await ctx.answerCallbackQuery({ text: t(locale, "actionOutdated"), show_alert: true });
       return;
     }
 
     const categoryId = getMatchGroupAsNumber(ctx, 1);
     if (categoryId === null) {
-      await ctx.answerCallbackQuery({ text: "Некорректный запрос", show_alert: true });
+      await ctx.answerCallbackQuery({ text: t(locale, "invalidRequest"), show_alert: true });
       return;
     }
     const category = this.deps.categoryService.getCategoryById(categoryId);
     await ctx.answerCallbackQuery();
 
     if (!category) {
-      await ctx.reply("Категория не найдена.");
+      await ctx.reply(t(locale, "categoryNotFound"));
       return;
     }
 
     this.deps.userStateService.set(userId, STATE.AdminChangePasswordValue, { categoryId });
-    await ctx.reply(`Введите новый пароль для категории "${category.name}":`);
+    await ctx.reply(t(locale, "enterNewPasswordForCategory", { categoryName: category.name }));
   }
 
   private async onAdminDeleteVideoCategory(ctx: Context): Promise<void> {
+    const locale = getLocale(ctx);
     const userId = await this.getAdminUserIdFromCallback(ctx);
     if (userId === null) {
       return;
@@ -126,30 +131,31 @@ export class CallbackController {
 
     const state = this.deps.userStateService.get(userId);
     if (state?.stateType !== STATE.AdminDeleteVideoCategory) {
-      await ctx.answerCallbackQuery({ text: "Действие неактуально", show_alert: true });
+      await ctx.answerCallbackQuery({ text: t(locale, "actionOutdated"), show_alert: true });
       return;
     }
 
     const categoryId = getMatchGroupAsNumber(ctx, 1);
     if (categoryId === null) {
-      await ctx.answerCallbackQuery({ text: "Некорректный запрос", show_alert: true });
+      await ctx.answerCallbackQuery({ text: t(locale, "invalidRequest"), show_alert: true });
       return;
     }
     const videos = this.deps.videoService.listByCategory(categoryId);
     await ctx.answerCallbackQuery();
 
     if (videos.length === 0) {
-      await ctx.reply("В этой категории нет видео.");
+      await ctx.reply(t(locale, "noVideosInCategory"));
       return;
     }
 
     this.deps.userStateService.set(userId, STATE.AdminDeleteVideoItem, { categoryId });
-    await ctx.reply("Выберите видео для удаления:", {
+    await ctx.reply(t(locale, "selectVideoToDelete"), {
       reply_markup: this.buildVideoDeleteKeyboard(videos)
     });
   }
 
   private async onAdminDeleteVideoItem(ctx: Context): Promise<void> {
+    const locale = getLocale(ctx);
     const userId = await this.getAdminUserIdFromCallback(ctx);
     if (userId === null) {
       return;
@@ -157,38 +163,38 @@ export class CallbackController {
 
     const state = this.deps.userStateService.get(userId);
     if (state?.stateType !== STATE.AdminDeleteVideoItem) {
-      await ctx.answerCallbackQuery({ text: "Действие неактуально", show_alert: true });
+      await ctx.answerCallbackQuery({ text: t(locale, "actionOutdated"), show_alert: true });
       return;
     }
 
     const categoryId = parseCategoryId(state.payload);
     if (categoryId === null) {
       this.deps.userStateService.clear(userId);
-      await ctx.answerCallbackQuery({ text: "Состояние сброшено", show_alert: true });
+      await ctx.answerCallbackQuery({ text: t(locale, "stateReset"), show_alert: true });
       return;
     }
 
     const videoId = getMatchGroupAsNumber(ctx, 1);
     if (videoId === null) {
-      await ctx.answerCallbackQuery({ text: "Некорректный запрос", show_alert: true });
+      await ctx.answerCallbackQuery({ text: t(locale, "invalidRequest"), show_alert: true });
       return;
     }
     const result = this.deps.videoService.deleteVideo(videoId);
     await ctx.answerCallbackQuery();
 
     if (!result.deleted) {
-      await ctx.reply("Видео не найдено.");
+      await ctx.reply(t(locale, "videoNotFound"));
       return;
     }
 
     const remainingVideos = this.deps.videoService.listByCategory(categoryId);
     if (remainingVideos.length === 0) {
       this.deps.userStateService.clear(userId);
-      await ctx.reply("Видео удалено. В категории больше нет видео.");
+      await ctx.reply(t(locale, "videoDeletedNoMore"));
       return;
     }
 
-    await ctx.reply("Видео удалено. Можете удалить следующее:", {
+    await ctx.reply(t(locale, "videoDeletedCanDeleteNext"), {
       reply_markup: this.buildVideoDeleteKeyboard(remainingVideos)
     });
   }
@@ -204,9 +210,10 @@ export class CallbackController {
   }
 
   private async getAdminUserIdFromCallback(ctx: Context): Promise<number | null> {
+    const locale = getLocale(ctx);
     const userId = getUserId(ctx);
     if (!this.deps.adminAccessService.isAdmin(userId)) {
-      await ctx.answerCallbackQuery({ text: "Недостаточно прав", show_alert: true });
+      await ctx.answerCallbackQuery({ text: t(locale, "insufficientRights"), show_alert: true });
       return null;
     }
     return userId;
